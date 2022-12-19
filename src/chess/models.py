@@ -22,9 +22,10 @@ class Team(enum.Enum):
 class Piece(abc.ABC):
     team: Team
 
-    @classmethod
-    def get_moves(cls, position, table: 'Table') -> list[Position]:
+    @abc.abstractmethod
+    def get_moves(self, position, table: 'Table') -> list[Position]:
         pass
+
 
     def is_piece_from_different_team(self, table, position):
         return (op := table.get_piece(position)) is not None and op.team != self.team
@@ -62,7 +63,12 @@ class Table:
 
     def move_piece(self, piece_position, to_position):
         new_table = deepcopy(self)
-        new_table._pieces[to_position] = new_table._pieces.pop(piece_position)
+
+        piece = new_table._pieces.pop(piece_position)
+        if isinstance(piece, Pawn) and to_position[0] == 0 or to_position[0] == 7:
+            piece = piece.promote()
+
+        new_table._pieces[to_position] = piece
         new_table.last_move = (piece_position, to_position)
 
         return new_table
@@ -150,6 +156,9 @@ class Pawn(Piece):
 
         return legal_moves
 
+    def promote(self):
+        return Queen(self.team)
+
 
 class King(Piece):
 
@@ -161,7 +170,7 @@ class King(Piece):
             oponent_king_in_box_of_box = any(isinstance(table.get_piece(p), King) and self.is_piece_from_different_team(table, p) for p in get_box_positions(pos))
             if oponent_king_in_box_of_box is False:
                 legal_moves.append(pos)
-    
+
         return legal_moves
 
 

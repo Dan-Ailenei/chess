@@ -5,9 +5,6 @@ from chess.models import Position, Team, Game
 
 
 class ChessController:
-    """
-    promote pawns
-    """
 
     def __init__(self, game: Game):
         self.game = game
