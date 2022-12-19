@@ -26,7 +26,6 @@ class Piece(abc.ABC):
     def get_moves(self, position, table: 'Table') -> list[Position]:
         pass
 
-
     def is_piece_from_different_team(self, table, position):
         return (op := table.get_piece(position)) is not None and op.team != self.team
 
@@ -73,7 +72,7 @@ class Table:
 
         return new_table
 
-    def get_piece_positions(self, team: Team, filter_king=True):
+    def get_piece_positions(self, team: Team):
         for position, piece in self._pieces.items():
             if piece.team == team and isinstance(piece, King) is False:
                 yield position
