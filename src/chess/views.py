@@ -1,3 +1,12 @@
-from django.shortcuts import render
+from rest_framework.generics import RetrieveAPIView
 
-# Create your views here.
+from chess.models import Game
+from chess.serializers import GameSerializer
+
+
+class GameDetailsView(RetrieveAPIView):
+    serializer_class = GameSerializer
+
+    queryset = Game.objects.all()
+
+    # def get(self, *args, **kw):

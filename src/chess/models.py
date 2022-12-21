@@ -1,15 +1,18 @@
 import abc
 import enum
+from ast import literal_eval
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Type, Optional
+
+from django.db import models
 
 from chess.maxtrix import traverse_matrix, MatrixDirection, get_box_positions
 
 Position = tuple[int, int]
 
 
-class Team(enum.Enum):
+class Team(models.IntegerChoices):
     WHITE = 1
     BLACK = 2
 
@@ -49,14 +52,41 @@ class Table:
     def build_initial_table(cls):
         return cls(
             {
-                (0, 3): King(Team.WHITE),
-                (7, 3): King(Team.BLACK),
-
                 (0, 0): Rook(Team.WHITE),
+                (0, 1): Knight(Team.WHITE),
+                (0, 2): Bishop(Team.WHITE),
+                (0, 3): King(Team.WHITE),
+                (0, 4): Queen(Team.WHITE),
+                (0, 5): Bishop(Team.WHITE),
+                (0, 6): Knight(Team.WHITE),
                 (0, 7): Rook(Team.WHITE),
 
+                (1, 0): Pawn(Team.WHITE),
+                (1, 1): Pawn(Team.WHITE),
+                (1, 2): Pawn(Team.WHITE),
+                (1, 3): Pawn(Team.WHITE),
+                (1, 4): Pawn(Team.WHITE),
+                (1, 5): Pawn(Team.WHITE),
+                (1, 6): Pawn(Team.WHITE),
+                (1, 7): Pawn(Team.WHITE),
+
                 (7, 0): Rook(Team.BLACK),
-                (7, 7): Rook(Team.BLACK)
+                (7, 1): Knight(Team.BLACK),
+                (7, 2): Bishop(Team.BLACK),
+                (7, 3): King(Team.BLACK),
+                (7, 4): Queen(Team.BLACK),
+                (7, 5): Bishop(Team.BLACK),
+                (7, 6): Knight(Team.BLACK),
+                (7, 7): Rook(Team.BLACK),
+
+                (6, 0): Pawn(Team.BLACK),
+                (6, 1): Pawn(Team.BLACK),
+                (6, 2): Pawn(Team.BLACK),
+                (6, 3): Pawn(Team.BLACK),
+                (6, 4): Pawn(Team.BLACK),
+                (6, 5): Pawn(Team.BLACK),
+                (6, 6): Pawn(Team.BLACK),
+                (6, 7): Pawn(Team.BLACK),
             }
         )
 
@@ -78,11 +108,59 @@ class Table:
                 yield position
 
 
-@dataclass
-class Game:
-    table: Table
-    team_to_play: Team = Team.WHITE
-    game_ended: bool = False
+def build_default_table():
+    return TableField.to_db(Table.build_initial_table())
+
+
+class TableField:
+    @classmethod
+    def to_db(cls, table):
+        last_move = [list(table.last_move[0]), list(table.last_move[1])] if table.last_move else None
+        return {
+            'pieces': {str(k): [v.__class__.__name__, v.team.value] for k, v in table._pieces.items()},
+            'last_move': last_move,
+        }
+
+    @classmethod
+    def convert_to_piece(cls, piece_data):
+        cls_name, team = piece_data
+        klass = {
+            'Rook': Rook,
+            'Knight': Knight,
+            'Bishop': Bishop,
+            'King': King,
+            'Queen': Queen,
+            'Pawn': Pawn,
+        }[cls_name]
+        return klass(team)
+
+    @classmethod
+    def to_python(cls, data):
+        pieces = {literal_eval(k): cls.convert_to_piece(v) for k, v in data['pieces'].items()}
+
+        last_move = data['last_move']
+        if last_move is not None:
+            last_move = [tuple(data['last_move'][0]), tuple(data['last_move'][1])]
+
+        table = Table(pieces)
+        table.last_move = last_move
+
+        return table
+
+
+class Game(models.Model):
+    team_to_play = models.IntegerField(choices=Team.choices, default=Team.WHITE)
+    game_ended = models.BooleanField(default=False)
+
+    table_data = models.JSONField(default=build_default_table)
+
+    @property
+    def table(self):
+        return TableField.to_python(self.table_data)
+
+    @table.setter
+    def table(self, table):
+        self.table_data = TableField.to_db(table)
 
 
 class Bishop(Piece):
