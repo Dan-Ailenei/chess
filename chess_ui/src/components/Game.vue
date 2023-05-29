@@ -4,6 +4,7 @@ import GameTable from './GameTable.vue'
 import { ref, computed } from 'vue'
 import {client} from '../client';
 
+
 const props = defineProps<{ game_id: number }>()
 
 const piece_translation = {
@@ -27,7 +28,6 @@ const piece_translation = {
 }
 
 const matrix = ref(new SparseMatrix(8, 8));
-// const data = ref({});
 
 function parseTuple(t) {
     var items = t.replace(/^\(|\)$/g, "").split("),(");
@@ -54,13 +54,11 @@ client.get_game_details(props.game_id)
     }
 });
 
-// function for sparse matrix
-
 
 </script>
 
 <template>
-    <GameTable :matrix="matrix"/>  
+    <GameTable :matrix="matrix" :game_id="game_id"/>  
 </template>
 
 <style scoped>

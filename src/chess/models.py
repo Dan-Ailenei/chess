@@ -1,5 +1,4 @@
 import abc
-import enum
 from ast import literal_eval
 from copy import deepcopy
 from dataclasses import dataclass
@@ -94,7 +93,7 @@ class Table:
         new_table = deepcopy(self)
 
         piece = new_table._pieces.pop(piece_position)
-        if isinstance(piece, Pawn) and to_position[0] == 0 or to_position[0] == 7:
+        if isinstance(piece, Pawn) and (to_position[0] == 0 or to_position[0] == 7):
             piece = piece.promote()
 
         new_table._pieces[to_position] = piece
@@ -132,7 +131,7 @@ class TableField:
             'Queen': Queen,
             'Pawn': Pawn,
         }[cls_name]
-        return klass(team)
+        return klass(Team(team))
 
     @classmethod
     def to_python(cls, data):
@@ -140,7 +139,7 @@ class TableField:
 
         last_move = data['last_move']
         if last_move is not None:
-            last_move = [tuple(data['last_move'][0]), tuple(data['last_move'][1])]
+            last_move = (tuple(data['last_move'][0]), tuple(data['last_move'][1]))
 
         table = Table(pieces)
         table.last_move = last_move
@@ -169,7 +168,6 @@ class Bishop(Piece):
         top_left = traverse_table_direction_stream(table, position, MatrixDirection.TOP_LEFT)
         bottom_right = traverse_table_direction_stream(table, position, MatrixDirection.BOTTOM_RIGHT)
         bottom_left = traverse_table_direction_stream(table, position, MatrixDirection.BOTTOM_LEFT)
-
         return top_right + top_left + bottom_right + bottom_left
 
 
@@ -200,17 +198,18 @@ class Knight(Piece):
         ]
         legal_moves = []
         for move in possible_moves:
+            x, y = move
             if 0 <= x < 8 and 0 <= y < 8 and (table.get_piece(move) is None or self.is_piece_from_different_team(table, position)):
                 legal_moves.append(move)
 
-        return [(x, y) for x, y in possible_moves]
+        return legal_moves
 
 
 class Pawn(Piece):
     def get_moves(self, position, table: 'Table') -> list[Position]:
         x, y = position
-        direction_vector = 1 if table.get_piece(position).team == Team.WHITE else -1
-
+        piece_team = table.get_piece(position).team
+        direction_vector = 1 if piece_team == Team.WHITE else -1
         up_direction = MatrixDirection.UP if direction_vector == 1 else MatrixDirection.BOTTOM
         top_right_direction = MatrixDirection.TOP_RIGHT if direction_vector == 1 else MatrixDirection.BOTTOM_LEFT
         top_left_direction = MatrixDirection.TOP_LEFT if direction_vector == 1 else MatrixDirection.BOTTOM_RIGHT
@@ -220,16 +219,29 @@ class Pawn(Piece):
         top_left = next(traverse_matrix(position, top_left_direction))
 
         legal_moves = []
-        if table.get_piece(up) is None:
+
+        if is_in_map(up) and table.get_piece(up) is None:
             legal_moves.append(up)
 
-        en_passant_top_right_move = ((x - (2 * direction_vector), y + direction_vector), (x, y + direction_vector))
-        en_passant_top_left_move = ((x - (2 * direction_vector), y - direction_vector), (x, y - direction_vector))
+            if piece_team == Team.WHITE and position[0] == 1:
+                up_2_squares = next(traverse_matrix(up, MatrixDirection.UP))
+                if table.get_piece(up_2_squares) is None:
+                    legal_moves.append(up_2_squares)
 
-        if self.is_piece_from_different_team(table, top_right) or (table.last_move == en_passant_top_right_move and isinstance(table.get_piece(table.last_move[1]), Pawn)):
-            legal_moves.append(top_right)
-        if self.is_piece_from_different_team(table, top_left) or (table.last_move == en_passant_top_left_move and isinstance(table.get_piece(table.last_move[1]), Pawn)):
-            legal_moves.append(top_left)
+            if piece_team == Team.BLACK and position[0] == 6:
+                up_2_squares = next(traverse_matrix(up, MatrixDirection.BOTTOM))
+                if table.get_piece(up_2_squares) is None:
+                    legal_moves.append(up_2_squares)
+
+        if is_in_map(top_right):
+            en_passant_top_right_move = ((x + (2 * direction_vector), y + direction_vector), (x, y + direction_vector))
+            if self.is_piece_from_different_team(table, top_right) or (table.last_move == en_passant_top_right_move and isinstance(table.get_piece(table.last_move[1]), Pawn)):
+                legal_moves.append(top_right)
+
+        if is_in_map(top_left):
+            en_passant_top_left_move = ((x + (2 * direction_vector), y - direction_vector), (x, y - direction_vector))
+            if self.is_piece_from_different_team(table, top_left) or (table.last_move == en_passant_top_left_move and isinstance(table.get_piece(table.last_move[1]), Pawn)):
+                legal_moves.append(top_left)
 
         return legal_moves
 
@@ -240,12 +252,14 @@ class Pawn(Piece):
 class King(Piece):
 
     def get_moves(self, position, table: 'Table') -> list[Position]:
-        box_positions = get_box_positions(position)
+        box_positions = filter(is_in_map, get_box_positions(position))
 
         legal_moves = []
         for pos in box_positions:
             oponent_king_in_box_of_box = any(isinstance(table.get_piece(p), King) and self.is_piece_from_different_team(table, p) for p in get_box_positions(pos))
-            if oponent_king_in_box_of_box is False:
+            square_is_taken = table.get_piece(pos) is not None and self.is_piece_from_different_team(table, pos) is False
+
+            if oponent_king_in_box_of_box is False and square_is_taken is False:
                 legal_moves.append(pos)
 
         return legal_moves
@@ -258,6 +272,9 @@ def traverse_table_direction_stream(table, position, direction):
     oponent_team = Team.get_oponent(current_piece.team)
 
     for pos in traverse_matrix(position, direction):
+        if is_in_map(pos) is False:
+            break
+
         table_piece = table.get_piece(pos)
         if table_piece is None:
             valid_positions.append(pos)
@@ -267,3 +284,11 @@ def traverse_table_direction_stream(table, position, direction):
             break
 
     return valid_positions
+
+
+def is_in_map(position):
+    MATRIX_LENGTH = 8
+
+    x, y = position
+
+    return 0 <= x < MATRIX_LENGTH and 0 <= y < MATRIX_LENGTH

@@ -10,18 +10,24 @@ class ChessController:
         self.game = game
 
     def move_piece(self, piece_position: Position, to_position: Position):
+        team_to_play = Team(self.game.team_to_play)
+
+        piece = self.game.table.get_piece(piece_position)
+        if piece.team != team_to_play:
+            raise ValueError(f'Not {piece.team} turn')
 
         if self.is_move_legal(piece_position, to_position) is False:
             raise ValueError('Move is not legal')
 
         new_table = self.game.table.move_piece(piece_position, to_position)
-        oponent_team = Team.get_oponent(self.game.team_to_play)
+        oponent_team = Team.get_oponent(team_to_play)
 
         if self._is_mate(new_table, oponent_team):
-            self.finish_game(self.game.team_to_play)
+            self.finish_game(team_to_play)
         else:
             self.game.team_to_play = oponent_team
             self.game.table = new_table
+            self.game.save()
 
     def is_move_legal(self, piece_position, to_position):
         piece = self.game.table.get_piece(piece_position)
@@ -32,10 +38,19 @@ class ChessController:
 
         return to_position in legal_moves
 
+    def get_all_legal_moves_for_piece(self, piece_position):
+        team_to_play = Team(self.game.team_to_play)
+
+        piece = self.game.table.get_piece(piece_position)
+        if piece.team != team_to_play:
+            raise ValueError(f'Not {piece.team} turn')
+
+        return self._get_all_legal_moves_for_piece(self.game.table, piece_position)
+
     def _get_all_legal_moves_for_piece(self, table, piece_position, filter_moves_that_lead_to_check=True):
         piece = table.get_piece(piece_position)
 
-        possible_moves = piece.get_moves(piece_position, self.game.table)
+        possible_moves = piece.get_moves(piece_position, table)
 
         if filter_moves_that_lead_to_check:
             possible_moves = self._filter_moves_that_lead_to_check(piece_position, possible_moves)
@@ -82,7 +97,7 @@ class ChessController:
         return all_pieces_moves_of_team
 
     def _filter_moves_that_lead_to_check(self, piece_position, possible_moves):
-        playing_team = self.game.team_to_play
+        playing_team = Team(self.game.team_to_play)
 
         legal_moves = []
         for move in possible_moves:

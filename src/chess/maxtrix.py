@@ -20,6 +20,7 @@ def traverse_matrix(position, direction:  MatrixDirection):
     while True:
         x = x + x_inc
         y = y + y_inc
+
         yield x, y
 
 
@@ -27,9 +28,6 @@ def get_box_positions(position):
     box_positions = []
     for d in MatrixDirection:
         box_position = next(traverse_matrix(position, d))
-        x, y = box_position
-        if x < 0 or y < 0 or x >= 8 or x >= 8:
-            continue
 
         box_positions.append(box_position)
 

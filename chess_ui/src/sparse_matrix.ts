@@ -28,6 +28,14 @@ export default class SparseMatrix {
       const value = this.elements.get(`${row},${col}`);
       return value !== undefined ? value : null;
     }
+
+    delete(row: number, col: number) {
+      if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) {
+        throw new Error("Invalid matrix index");
+      }
+
+      this.elements.delete(`${row},${col}`);
+    }
   }
   
   
